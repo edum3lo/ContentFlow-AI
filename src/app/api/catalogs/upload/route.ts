@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
-import { PDFParse } from 'pdf-parse'
 import { validateUpload } from '@/lib/upload-validation'
 
 // A leitura por IA (Vision/OCR) pode passar dos ~10s padrão do Vercel.
@@ -108,6 +107,9 @@ Cada produto deve ter o seguinte formato:
 Retorne SOMENTE o JSON válido, sem markdown.`
 
       if (fileType === 'application/pdf') {
+        // Import dinâmico: só carrega o pdf-parse quando o arquivo é PDF,
+        // evitando que ele seja avaliado (e possa quebrar) em uploads de imagem.
+        const { PDFParse } = await import('pdf-parse')
         const parser = new PDFParse({ data: buffer })
         const pdfData = await parser.getText()
         const text = pdfData.text
