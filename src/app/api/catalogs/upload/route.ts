@@ -4,9 +4,11 @@ import OpenAI from 'openai'
 import { PDFParse } from 'pdf-parse'
 import { validateUpload } from '@/lib/upload-validation'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Instanciação preguiçosa: criar o cliente só em runtime evita que o `next build`
+// quebre ao importar a rota sem a OPENAI_API_KEY definida.
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+}
 
 // Modelo da EXTRAÇÃO (OCR/Vision): qualidade é crítica aqui, então o padrão é
 // um modelo forte. Pode ser sobrescrito por env var.
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
     // 3. Processar com OpenAI
     try {
       const buffer = Buffer.from(await file.arrayBuffer())
+      const openai = getOpenAI()
       let extractedData: ExtractedProduct[] = []
 
       const systemPrompt = `Você é um assistente especializado em extrair informações de catálogos e listas de preços.

@@ -3,9 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import { buildVideoScript } from '@/lib/video-script'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Instanciação preguiçosa: criar o cliente só em runtime evita que o `next build`
+// quebre ao importar a rota sem a OPENAI_API_KEY definida.
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+}
 
 // Modelo da GERAÇÃO de texto (legenda/hashtags/roteiro): tarefa mais perdoável,
 // então o padrão é um modelo barato. Pode ser sobrescrito por env var.
@@ -157,6 +159,7 @@ export async function POST(request: Request) {
       })
       .join('\n\n')
 
+    const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: GENERATION_MODEL,
       temperature: 0.8,
