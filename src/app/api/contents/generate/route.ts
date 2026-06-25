@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import { buildVideoScript } from '@/lib/video-script'
 
+// A geração via OpenAI pode passar dos ~10s padrão do Vercel.
+export const maxDuration = 60
+
 // Instanciação preguiçosa: criar o cliente só em runtime evita que o `next build`
 // quebre ao importar a rota sem a OPENAI_API_KEY definida.
 function getOpenAI() {

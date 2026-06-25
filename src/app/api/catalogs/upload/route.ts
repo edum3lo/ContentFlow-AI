@@ -4,6 +4,10 @@ import OpenAI from 'openai'
 import { PDFParse } from 'pdf-parse'
 import { validateUpload } from '@/lib/upload-validation'
 
+// A leitura por IA (Vision/OCR) pode passar dos ~10s padrão do Vercel.
+// 60s é o máximo no plano Hobby; sem isso a função estoura e retorna HTML.
+export const maxDuration = 60
+
 // Instanciação preguiçosa: criar o cliente só em runtime evita que o `next build`
 // quebre ao importar a rota sem a OPENAI_API_KEY definida.
 function getOpenAI() {

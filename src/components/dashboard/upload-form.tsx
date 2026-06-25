@@ -20,8 +20,21 @@ export function UploadForm() {
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Erro ao enviar arquivo')
+        // A resposta pode não ser JSON (ex.: página de erro do Vercel em
+        // timeout/limite). Tratamos sem quebrar com "Unexpected token".
+        let message = 'Erro ao enviar arquivo'
+        try {
+          const data = await res.json()
+          message = data.error || message
+        } catch {
+          message =
+            res.status === 413
+              ? 'Arquivo grande demais. Tente um arquivo menor.'
+              : res.status === 504
+                ? 'A análise demorou demais. Tente uma imagem/PDF menor.'
+                : `Erro ${res.status} ao processar o arquivo.`
+        }
+        throw new Error(message)
       }
 
       router.refresh()
