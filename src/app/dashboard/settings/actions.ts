@@ -15,6 +15,7 @@ type ActionResult = { success: true } | { error: string }
 export async function updateBranding(values: {
   brandName: string
   logoPath?: string | null
+  brandColor?: string | null
 }): Promise<ActionResult> {
   const supabase = await createClient()
   const {
@@ -22,8 +23,20 @@ export async function updateBranding(values: {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autorizado' }
 
-  const update: { brand_name: string | null; brand_logo_url?: string | null } = {
+  const update: {
+    brand_name: string | null
+    brand_logo_url?: string | null
+    brand_color?: string | null
+  } = {
     brand_name: values.brandName.trim() || null,
+  }
+
+  // Cor da marca (extraída do logo no navegador). Valida formato hex simples.
+  if (values.brandColor !== undefined) {
+    update.brand_color =
+      values.brandColor && /^#[0-9a-fA-F]{6}$/.test(values.brandColor)
+        ? values.brandColor
+        : null
   }
 
   if (values.logoPath !== undefined) {

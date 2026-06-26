@@ -30,6 +30,7 @@ function buildInstructions(type: ContentType, tone?: string, network?: string) {
 Escreva sempre em português do Brasil, mantendo o texto direto, moderno e específico para o produto.
 Nunca invente preços, características, benefícios ou usos: use exatamente os dados do(s) produto(s) fornecido(s).
 Evite frases genéricas como "este produto" ou "nosso produto"; use o nome exato do produto e o preço quando disponíveis.
+Se houver um nome de marca do cliente, utilize-o para tornar a mensagem mais identificável.
 Retorne SOMENTE um JSON válido, sem markdown e sem comentários.`
 
   if (tone) {
@@ -172,6 +173,13 @@ export async function POST(request: Request) {
       )
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('brand_name')
+      .eq('id', user.id)
+      .single()
+    const brandName = profile?.brand_name?.trim() || null
+
     const productsText = products
       .map((p, i) => {
         const parts = [
@@ -190,7 +198,11 @@ export async function POST(request: Request) {
     let finalInstruction = instruction
       ? `\n\nInstrução adicional do usuário: ${instruction}`
       : ''
-      
+
+    if (brandName) {
+      finalInstruction += `\n\nA marca/loja se chama "${brandName}". Quando fizer sentido, cite a marca no texto ou no CTA (ex.: "Chame a ${brandName} no WhatsApp"). Não invente outro nome de loja.`
+    }
+
     if (generateScript && type !== 'video') {
       finalInstruction += `\n\nIMPORTANTE: O usuário pediu um roteiro de vídeo junto com esse conteúdo. Adicione um campo 'slides' no JSON contendo pelo menos um objeto { "kind": "roteiro", "text": "Passos para gravar o vídeo..." } e { "kind": "gancho", "text": "..." }.`
     }
@@ -202,7 +214,7 @@ export async function POST(request: Request) {
     const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: GENERATION_MODEL,
-      temperature: 0.7,
+      temperature: 0.65,
       messages: [
         { role: 'system', content: buildInstructions(type, tone, network) },
         {

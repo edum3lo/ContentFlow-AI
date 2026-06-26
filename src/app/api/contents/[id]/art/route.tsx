@@ -66,6 +66,16 @@ const formatPrice = (price: number) =>
     price
   )
 
+/** Preto ou branco, conforme o que tiver melhor contraste sobre a cor dada. */
+function contrastColor(hex: string): string {
+  const m = hex.replace('#', '')
+  const r = parseInt(m.substring(0, 2), 16)
+  const g = parseInt(m.substring(2, 4), 16)
+  const b = parseInt(m.substring(4, 6), 16)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? '#0b0b0b' : '#ffffff'
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -148,13 +158,20 @@ export async function GET(
   // Marca do usuário (nome + logo) — entra no lugar de "ContentFlow AI".
   const { data: profile } = await supabase
     .from('profiles')
-    .select('brand_name, brand_logo_url')
+    .select('brand_name, brand_logo_url, brand_color')
     .eq('id', user.id)
     .single()
   const brandName = profile?.brand_name?.trim() || null
   const brandLogo = profile?.brand_logo_url
     ? await toDataUrl(profile.brand_logo_url)
     : null
+
+  // A cor da marca (extraída do logo) vira o DESTAQUE da arte — assim cada post
+  // segue a identidade visual. O resto do template (fundo/texto) é mantido.
+  const brandColor =
+    typeof profile?.brand_color === 'string' ? profile.brand_color : null
+  const accent = brandColor || t.accent
+  const accentFg = brandColor ? contrastColor(brandColor) : t.accentFg
 
   const titleSize = isStory ? 80 : 66
   const padding = isStory ? 96 : 80
@@ -243,7 +260,7 @@ export async function GET(
               padding: '12px 24px',
               borderRadius: 999,
               background: t.badgeBg,
-              color: t.accent,
+              color: accent,
               fontSize: 24,
               fontWeight: 600,
               textTransform: 'uppercase',
@@ -288,7 +305,7 @@ export async function GET(
               width: 120,
               height: 8,
               borderRadius: 999,
-              background: t.accent,
+              background: accent,
               marginBottom: 40,
             }}
           />
@@ -340,7 +357,7 @@ export async function GET(
                     display: 'flex',
                     fontSize: 66,
                     fontWeight: 700,
-                    color: t.accent,
+                    color: accent,
                     lineHeight: 1,
                   }}
                 >
@@ -364,8 +381,8 @@ export async function GET(
               display: 'flex',
               padding: '24px 44px',
               borderRadius: 999,
-              background: t.accent,
-              color: t.accentFg,
+              background: accent,
+              color: accentFg,
               fontSize: 32,
               fontWeight: 700,
             }}

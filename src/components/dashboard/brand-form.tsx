@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { updateBranding } from '@/app/dashboard/settings/actions'
+import { extractPrimaryColor } from '@/lib/extract-color'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Upload, Check, Trash2, Image as ImageIcon } from 'lucide-react'
@@ -20,6 +21,7 @@ export function BrandForm({
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl)
   // undefined = não mudou; null = remover; string = novo caminho
   const [logoPath, setLogoPath] = useState<string | null | undefined>(undefined)
+  const [brandColor, setBrandColor] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -59,6 +61,9 @@ export function BrandForm({
       const { data } = supabase.storage.from('products').getPublicUrl(path)
       setLogoUrl(data.publicUrl)
       setLogoPath(path)
+      // Extrai a cor principal do logo pra arte seguir a identidade.
+      const color = await extractPrimaryColor(file)
+      if (color) setBrandColor(color)
     } finally {
       setUploading(false)
     }
@@ -67,6 +72,7 @@ export function BrandForm({
   const removeLogo = () => {
     setLogoUrl(null)
     setLogoPath(null)
+    setBrandColor(null)
     setMsg(null)
   }
 
@@ -74,7 +80,12 @@ export function BrandForm({
     setSaving(true)
     setMsg(null)
     setError(null)
-    const res = await updateBranding({ brandName: name, logoPath })
+    const res = await updateBranding({
+      brandName: name,
+      logoPath,
+      // só envia a cor se um novo logo foi enviado (não apaga a cor ao só editar o nome)
+      brandColor: logoPath !== undefined ? brandColor : undefined,
+    })
     if ('error' in res) {
       setError(res.error)
     } else {

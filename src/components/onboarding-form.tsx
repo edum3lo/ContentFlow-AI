@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { updateBranding } from '@/app/dashboard/settings/actions'
+import { extractPrimaryColor } from '@/lib/extract-color'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +26,7 @@ export function OnboardingForm({
   const [name, setName] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl)
   const [logoPath, setLogoPath] = useState<string | null | undefined>(undefined)
+  const [brandColor, setBrandColor] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +64,9 @@ export function OnboardingForm({
       const { data } = supabase.storage.from('products').getPublicUrl(path)
       setLogoUrl(data.publicUrl)
       setLogoPath(path)
+      // Extrai a cor principal do logo pra arte seguir a identidade.
+      const color = await extractPrimaryColor(file)
+      if (color) setBrandColor(color)
     } finally {
       setUploading(false)
     }
@@ -74,7 +79,7 @@ export function OnboardingForm({
     }
     setSaving(true)
     setError(null)
-    const res = await updateBranding({ brandName: name, logoPath })
+    const res = await updateBranding({ brandName: name, logoPath, brandColor })
     if ('error' in res) {
       setError(res.error)
       setSaving(false)
@@ -147,6 +152,7 @@ export function OnboardingForm({
                 onClick={() => {
                   setLogoUrl(null)
                   setLogoPath(null)
+                  setBrandColor(null)
                 }}
                 className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-destructive hover:underline"
               >
