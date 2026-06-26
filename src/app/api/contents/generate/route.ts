@@ -26,9 +26,10 @@ const formatPrice = (price: number) =>
   )
 
 function buildInstructions(type: ContentType, tone?: string, network?: string) {
-  let base = `Você é um especialista em marketing para redes sociais focado em negócios locais e vendas no Brasil.
-Escreva sempre em português do Brasil, usando emojis com moderação.
-Nunca invente preços ou características: use exatamente os dados do(s) produto(s) fornecido(s).
+  let base = `Você é um especialista em marketing de redes sociais para negócios locais no Brasil, com experiência em criar posts, stories e roteiros prontos para publicar.
+Escreva sempre em português do Brasil, mantendo o texto direto, moderno e específico para o produto.
+Nunca invente preços, características, benefícios ou usos: use exatamente os dados do(s) produto(s) fornecido(s).
+Evite frases genéricas como "este produto" ou "nosso produto"; use o nome exato do produto e o preço quando disponíveis.
 Retorne SOMENTE um JSON válido, sem markdown e sem comentários.`
 
   if (tone) {
@@ -45,9 +46,9 @@ Retorne SOMENTE um JSON válido, sem markdown e sem comentários.`
 Gere um POST para feed com este formato:
 {
   "title": "Gancho curto e chamativo (máx. 8 palavras)",
-  "caption": "Legenda completa e otimizada (3 a 5 linhas, com quebras de linha \\n)",
-  "hashtags": "entre 10 e 20 hashtags separadas por espaço, todas começando com #",
-  "cta": "Chamada para ação curta (ex: Chame no WhatsApp)"
+  "caption": "Legenda completa e otimizada, 3 a 5 linhas, com quebras de linha \\n. Inclua preço exato e destaque do produto.",
+  "hashtags": "entre 8 e 15 hashtags separadas por espaço, todas começando com #",
+  "cta": "Chamada para ação curta (ex: Chame no WhatsApp, Clique para comprar)"
 }`
   }
 
@@ -78,9 +79,9 @@ Gere um conjunto de STORIES com este formato:
   "hashtags": "entre 8 e 15 hashtags separadas por espaço, começando com #",
   "cta": "Chamada para ação curta",
   "slides": [
-    { "kind": "promocional", "text": "Texto do story promocional" },
-    { "kind": "urgencia", "text": "Texto do story de urgência/escassez" },
-    { "kind": "lancamento", "text": "Texto do story de lançamento/novidade" }
+    { "kind": "promocional", "text": "Texto do story promocional com nome do produto e preço" },
+    { "kind": "urgencia", "text": "Texto de urgência/escassez com oferta ou limite" },
+    { "kind": "lancamento", "text": "Texto de lançamento/novidade com vantagem clara" }
   ]
 }`
   }
@@ -88,15 +89,16 @@ Gere um conjunto de STORIES com este formato:
   // carousel
   return `${base}
 
-Gere um CARROSSEL com slides. O primeiro slide é a capa e o último é o CTA; os slides do meio apresentam um produto cada.
+Gere um CARROSSEL com slides. O primeiro slide deve ser a capa, os slides do meio devem apresentar cada produto selecionado e o último slide deve ser o CTA.
 Formato:
 {
   "title": "Tema do carrossel (ex: Produtos mais procurados)",
   "caption": "Legenda completa do carrossel (3 a 5 linhas, com \\n)",
-  "hashtags": "entre 10 e 20 hashtags separadas por espaço, começando com #",
+  "hashtags": "entre 8 e 15 hashtags separadas por espaço, começando com #",
   "cta": "Chamada para ação curta",
   "slides": [
     { "kind": "capa", "heading": "Título da capa", "body": "Subtítulo da capa" },
+    { "kind": "produto", "heading": "Nome do produto", "body": "Texto de venda curto com o preço" },
     { "kind": "produto", "heading": "Nome do produto", "body": "Texto de venda curto com o preço" },
     { "kind": "cta", "heading": "Chamada final", "body": "Reforço do CTA" }
   ]
@@ -200,7 +202,7 @@ export async function POST(request: Request) {
     const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: GENERATION_MODEL,
-      temperature: 0.9,
+      temperature: 0.7,
       messages: [
         { role: 'system', content: buildInstructions(type, tone, network) },
         {

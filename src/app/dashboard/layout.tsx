@@ -15,6 +15,18 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
+  // Onboarding: enquanto não definir a marca (nome), leva pra tela de boas-vindas.
+  // Guia o usuário a configurar a identidade antes de usar o resto.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('brand_name')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.brand_name) {
+    redirect('/onboarding')
+  }
+
   return (
     <div className="relative flex min-h-screen bg-muted/30">
       <div className="fixed inset-y-0 z-50 hidden w-64 md:flex md:flex-col">
