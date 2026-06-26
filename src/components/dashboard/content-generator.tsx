@@ -389,7 +389,11 @@ export function ContentGenerator({ products }: { products: Product[] }) {
         </p>
       )}
 
-      {selected.length > 0 && (
+      {selected.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground">
+          👆 Marque um ou mais produtos acima para gerar.
+        </p>
+      ) : (
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p>
             {isCarousel
@@ -408,7 +412,11 @@ export function ContentGenerator({ products }: { products: Product[] }) {
         type="button"
         size="lg"
         onClick={handleGenerate}
-        disabled={loading}
+        disabled={
+          loading ||
+          selected.length === 0 ||
+          (isCarousel && selected.length < 2)
+        }
         className="w-full font-semibold"
       >
         {loading ? (

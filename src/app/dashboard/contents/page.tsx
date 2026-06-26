@@ -31,14 +31,43 @@ export default async function ContentsPage() {
       .select('id, name, category, price, status')
       .eq('status', 'approved')
       .order('created_at', { ascending: false }),
+    // NÃO usamos embed (product:products(...)) aqui de propósito: existem DUAS
+    // relações generated_contents↔products (product_id direto + content_products
+    // do carrossel), e o PostgREST falha por ambiguidade, deixando a lista vazia
+    // mesmo havendo conteúdos. Buscamos os nomes em uma 2ª query e juntamos.
     supabase
       .from('generated_contents')
-      .select('*, product:products(name)')
+      .select('*')
       .order('created_at', { ascending: false }),
   ])
 
   const products = productsRes.data ?? []
-  const contents = (contentsRes.data ?? []) as unknown as GeneratedContent[]
+  const rawContents = contentsRes.data ?? []
+
+  // Nomes dos produtos vinculados (somente posts/stories/vídeos têm product_id;
+  // carrossel fica sem nome único, como antes).
+  const productIds = [
+    ...new Set(
+      rawContents
+        .map((c) => c.product_id as string | null)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+  const productNameById = new Map<string, string>()
+  if (productIds.length > 0) {
+    const { data: prods } = await supabase
+      .from('products')
+      .select('id, name')
+      .in('id', productIds)
+    for (const p of prods ?? []) productNameById.set(p.id, p.name)
+  }
+
+  const contents = rawContents.map((c) => ({
+    ...c,
+    product: c.product_id
+      ? { name: productNameById.get(c.product_id) ?? null }
+      : null,
+  })) as unknown as GeneratedContent[]
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
