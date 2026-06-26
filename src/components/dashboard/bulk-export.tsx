@@ -54,12 +54,18 @@ export function BulkExport({ contents }: { contents: GeneratedContent[] }) {
   const handleExport = async () => {
     if (selectedIds.size === 0) return
 
-    const canUseShare =
+    // Web Share só faz sentido em celular/touch. No desktop (inclusive Chrome no
+    // Windows, que suporta canShare) isso abriria a janela "Compartilhar" do
+    // sistema em vez de baixar — então no PC sempre baixamos o arquivo.
+    const isMobile =
       typeof navigator !== 'undefined' &&
-      typeof navigator.canShare === 'function'
+      (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 0 &&
+          typeof window !== 'undefined' &&
+          window.matchMedia('(pointer: coarse)').matches))
+    const useShare = isMobile && typeof navigator.canShare === 'function'
 
-    // Cap só vale para o compartilhamento nativo (celular). No desktop cai no ZIP.
-    if (canUseShare && selectedIds.size > MAX_SHARE) {
+    if (useShare && selectedIds.size > MAX_SHARE) {
       alert(
         `Para salvar direto no celular, selecione até ${MAX_SHARE} por vez. (Você selecionou ${selectedIds.size}.)`
       )
@@ -71,7 +77,7 @@ export function BulkExport({ contents }: { contents: GeneratedContent[] }) {
     setZipping(false)
 
     try {
-      const filesToShare: File[] = []
+      const files: File[] = []
       let count = 0
 
       for (const id of selectedIds) {
@@ -88,7 +94,7 @@ export function BulkExport({ contents }: { contents: GeneratedContent[] }) {
           .toLowerCase()
           .substring(0, 30)
 
-        filesToShare.push(
+        files.push(
           new File([blob], `${safeName}-${id.substring(0, 4)}.png`, {
             type: 'image/png',
           })
@@ -97,10 +103,10 @@ export function BulkExport({ contents }: { contents: GeneratedContent[] }) {
         setProgress(count)
       }
 
-      // Tenta usar a Web Share API nativa do celular (iOS/Android)
-      if (canUseShare && navigator.canShare({ files: filesToShare })) {
+      // Celular: compartilhar nativo (salvar no rolo / mandar pro WhatsApp).
+      if (useShare && navigator.canShare({ files })) {
         try {
-          await navigator.share({ files: filesToShare, title: 'Artes Prontas' })
+          await navigator.share({ files, title: 'Artes Prontas' })
           setOpen(false)
           return
         } catch (shareErr) {
@@ -112,13 +118,17 @@ export function BulkExport({ contents }: { contents: GeneratedContent[] }) {
         }
       }
 
-      // Fallback para JSZip (computador ou navegadores sem suporte a share)
-      setZipping(true)
-      const zip = new JSZip()
-      const folder = zip.folder(`ContentFlow-Artes-${format}`)
-      filesToShare.forEach((f) => folder?.file(f.name, f))
-      const zipBlob = await zip.generateAsync({ type: 'blob' })
-      saveAs(zipBlob, `Artes-ContentFlow-${Date.now()}.zip`)
+      // Desktop (ou sem share): baixa direto. 1 arte = PNG; várias = ZIP.
+      if (files.length === 1) {
+        saveAs(files[0], files[0].name)
+      } else {
+        setZipping(true)
+        const zip = new JSZip()
+        const folder = zip.folder(`ContentFlow-Artes-${format}`)
+        files.forEach((f) => folder?.file(f.name, f))
+        const zipBlob = await zip.generateAsync({ type: 'blob' })
+        saveAs(zipBlob, `Artes-ContentFlow-${Date.now()}.zip`)
+      }
       setOpen(false)
     } catch (err) {
       console.error('Erro ao exportar:', err)
