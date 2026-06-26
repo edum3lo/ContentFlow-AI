@@ -55,6 +55,7 @@ const ART_TEMPLATES = [
   { key: 'premium', label: 'Premium' },
   { key: 'minimalista', label: 'Minimalista' },
   { key: 'corporativo', label: 'Corporativo' },
+  { key: 'ia', label: 'IA ✨' },
 ]
 
 function ArtExport({ contentId }: { contentId: string }) {
@@ -100,6 +101,13 @@ function ArtExport({ contentId }: { contentId: string }) {
               </button>
             ))}
           </div>
+
+          {template === 'ia' && (
+            <p className="rounded-md bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground">
+              ✨ Fundo gerado por IA na cor da sua marca. A 1ª vez leva alguns
+              segundos; depois é instantâneo.
+            </p>
+          )}
 
           <div className="flex gap-1.5">
             {(['post', 'story'] as const).map((f) => (

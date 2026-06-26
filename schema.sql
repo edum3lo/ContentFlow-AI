@@ -7,6 +7,9 @@ CREATE TYPE content_type AS ENUM ('post', 'story', 'carousel', 'catalog', 'video
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
+  brand_name TEXT,
+  brand_logo_url TEXT,
+  brand_color TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

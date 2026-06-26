@@ -1,5 +1,9 @@
 import { ImageResponse } from 'next/og'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateAiBackground } from '@/lib/art-background'
+
+// Geração do fundo por IA (template "ia") pode passar dos ~10s padrão.
+export const maxDuration = 60
 
 // Cache da arte renderizada no navegador do próprio usuário (private, não no
 // CDN compartilhado, pois a rota é autenticada). Evita re-renderizar a MESMA
@@ -83,7 +87,10 @@ export async function GET(
   const { id } = await params
   const { searchParams } = new URL(request.url)
 
-  const templateKey = (searchParams.get('template') ?? 'moderno') as TemplateKey
+  const templateParam = searchParams.get('template') ?? 'moderno'
+  const isAi = templateParam === 'ia'
+  const templateKey = templateParam as TemplateKey
+  // No modo IA, usa o "moderno" como base de cores do texto.
   const t = TEMPLATES[templateKey] ?? TEMPLATES.moderno
   const isStory = searchParams.get('format') === 'story'
 
@@ -173,6 +180,20 @@ export async function GET(
   const accent = brandColor || t.accent
   const accentFg = brandColor ? contrastColor(brandColor) : t.accentFg
 
+  // Fase 2: fundo gerado por IA (na cor da marca), cacheado por marca/formato.
+  const aiBackground = isAi
+    ? await getOrCreateAiBackground({
+        supabase,
+        userId: user.id,
+        isStory,
+        brandColor,
+      })
+    : null
+
+  // Sobre o fundo de IA o texto vai branco (há um escurecedor por cima da imagem).
+  const fg = aiBackground ? '#ffffff' : t.fg
+  const sub = aiBackground ? 'rgba(255,255,255,0.82)' : t.sub
+
   const titleSize = isStory ? 80 : 66
   const padding = isStory ? 96 : 80
   const innerWidth = width - padding * 2
@@ -189,35 +210,71 @@ export async function GET(
           justifyContent: 'space-between',
           padding,
           background: t.bg,
-          color: t.fg,
+          color: fg,
           position: 'relative',
           fontFamily: 'sans-serif',
         }}
       >
-        {/* Brilhos decorativos */}
-        <div
-          style={{
-            position: 'absolute',
-            top: -220,
-            right: -220,
-            width: 760,
-            height: 760,
-            display: 'flex',
-            backgroundImage: t.glow,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: -260,
-            left: -240,
-            width: 640,
-            height: 640,
-            display: 'flex',
-            backgroundImage: t.glow,
-            opacity: 0.45,
-          }}
-        />
+        {aiBackground ? (
+          <>
+            {/* Fundo gerado por IA */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={aiBackground}
+              width={width}
+              height={height}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width,
+                height,
+                objectFit: 'cover',
+              }}
+              alt=""
+            />
+            {/* Escurecedor para legibilidade do texto */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width,
+                height,
+                display: 'flex',
+                backgroundImage:
+                  'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.78))',
+              }}
+            />
+          </>
+        ) : (
+          <>
+            {/* Brilhos decorativos */}
+            <div
+              style={{
+                position: 'absolute',
+                top: -220,
+                right: -220,
+                width: 760,
+                height: 760,
+                display: 'flex',
+                backgroundImage: t.glow,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                bottom: -260,
+                left: -240,
+                width: 640,
+                height: 640,
+                display: 'flex',
+                backgroundImage: t.glow,
+                opacity: 0.45,
+              }}
+            />
+          </>
+        )}
 
         {/* Topo: marca + selo */}
         <div
@@ -335,7 +392,7 @@ export async function GET(
                   display: 'flex',
                   fontSize: 44,
                   fontWeight: 600,
-                  color: t.fg,
+                  color: fg,
                 }}
               >
                 {product.name}
@@ -348,7 +405,7 @@ export async function GET(
                 }}
               >
                 <span
-                  style={{ display: 'flex', fontSize: 24, color: t.sub, letterSpacing: 1 }}
+                  style={{ display: 'flex', fontSize: 24, color: sub, letterSpacing: 1 }}
                 >
                   a partir de
                 </span>
@@ -395,7 +452,7 @@ export async function GET(
                 display: 'flex',
                 fontSize: 24,
                 fontWeight: 600,
-                color: t.sub,
+                color: sub,
               }}
             >
               {brandName}
