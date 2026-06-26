@@ -29,6 +29,20 @@ export default async function ProductsPage() {
         </p>
       </div>
 
+      {products && products.length > 0 && (
+        <p className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">
+          💡 <span className="font-medium">Produtos com foto geram artes muito melhores.</span>{' '}
+          <span className="text-muted-foreground">
+            Clique no ícone de foto na coluna &ldquo;Foto&rdquo; de cada produto
+            para anexar. Defina também sua marca em{' '}
+            <Link href="/dashboard/settings" className="font-medium text-primary hover:underline">
+              Marca
+            </Link>{' '}
+            para o logo aparecer nas artes.
+          </span>
+        </p>
+      )}
+
       {!products || products.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
           <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">

@@ -5,7 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 // CDN compartilhado, pois a rota é autenticada). Evita re-renderizar a MESMA
 // arte (mesmo template/formato) a cada toggle na galeria ou na exportação —
 // só a 1ª geração de cada variante custa um render no Vercel.
-const ART_CACHE_CONTROL = 'private, max-age=86400'
+// Cache curto: evita re-render repetido na mesma sessão (galeria/export), mas
+// deixa marca/foto recém-configuradas aparecerem rápido (até ~1 min).
+const ART_CACHE_CONTROL = 'private, max-age=60'
 
 type TemplateKey = 'premium' | 'minimalista' | 'moderno' | 'corporativo'
 
@@ -125,26 +127,39 @@ export async function GET(
     product = Array.isArray(p) ? p[0] ?? null : p
   }
 
-  // Carrega a foto do produto como data URL. Se falhar (rede/404), a arte sai
-  // sem foto em vez de quebrar — fallback seguro.
-  let productImage: string | null = null
-  if (product?.image_url) {
+  // Baixa uma imagem como data URL (foto do produto ou logo). Se falhar, volta
+  // null e a arte sai sem ela em vez de quebrar — fallback seguro.
+  async function toDataUrl(url: string): Promise<string | null> {
     try {
-      const r = await fetch(product.image_url)
-      if (r.ok) {
-        const ct = r.headers.get('content-type') || 'image/jpeg'
-        const buf = Buffer.from(await r.arrayBuffer())
-        productImage = `data:${ct};base64,${buf.toString('base64')}`
-      }
+      const r = await fetch(url)
+      if (!r.ok) return null
+      const ct = r.headers.get('content-type') || 'image/jpeg'
+      const buf = Buffer.from(await r.arrayBuffer())
+      return `data:${ct};base64,${buf.toString('base64')}`
     } catch {
-      /* ignora: arte sem foto */
+      return null
     }
   }
 
-  const titleSize = isStory ? 80 : 68
+  const productImage = product?.image_url
+    ? await toDataUrl(product.image_url)
+    : null
+
+  // Marca do usuário (nome + logo) — entra no lugar de "ContentFlow AI".
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('brand_name, brand_logo_url')
+    .eq('id', user.id)
+    .single()
+  const brandName = profile?.brand_name?.trim() || null
+  const brandLogo = profile?.brand_logo_url
+    ? await toDataUrl(profile.brand_logo_url)
+    : null
+
+  const titleSize = isStory ? 80 : 66
   const padding = isStory ? 96 : 80
   const innerWidth = width - padding * 2
-  const imageHeight = isStory ? 720 : 380
+  const imageHeight = isStory ? 760 : 420
 
   return new ImageResponse(
     (
@@ -162,16 +177,28 @@ export async function GET(
           fontFamily: 'sans-serif',
         }}
       >
-        {/* Brilho decorativo */}
+        {/* Brilhos decorativos */}
         <div
           style={{
             position: 'absolute',
-            top: -200,
-            right: -200,
-            width: 700,
-            height: 700,
+            top: -220,
+            right: -220,
+            width: 760,
+            height: 760,
             display: 'flex',
             backgroundImage: t.glow,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -260,
+            left: -240,
+            width: 640,
+            height: 640,
+            display: 'flex',
+            backgroundImage: t.glow,
+            opacity: 0.45,
           }}
         />
 
@@ -183,17 +210,32 @@ export async function GET(
             justifyContent: 'space-between',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              fontSize: 30,
-              fontWeight: 700,
-              letterSpacing: -0.5,
-            }}
-          >
-            ContentFlow
-            <span style={{ color: t.accent, marginLeft: 8 }}>AI</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {brandLogo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brandLogo}
+                height={isStory ? 72 : 60}
+                style={{
+                  height: isStory ? 72 : 60,
+                  maxWidth: 300,
+                  objectFit: 'contain',
+                }}
+                alt=""
+              />
+            )}
+            {brandName && (
+              <div
+                style={{
+                  display: 'flex',
+                  fontSize: isStory ? 34 : 30,
+                  fontWeight: 700,
+                  letterSpacing: -0.5,
+                }}
+              >
+                {brandName}
+              </div>
+            )}
           </div>
           <div
             style={{
@@ -220,10 +262,10 @@ export async function GET(
                 display: 'flex',
                 width: innerWidth,
                 height: imageHeight,
-                marginBottom: 48,
-                borderRadius: 32,
+                marginBottom: 44,
+                borderRadius: 36,
                 overflow: 'hidden',
-                border: `3px solid ${t.accent}`,
+                border: `1px solid ${t.badgeBg}`,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -284,19 +326,22 @@ export async function GET(
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'baseline',
-                  marginTop: 12,
-                  color: t.sub,
-                  fontSize: 32,
+                  flexDirection: 'column',
+                  marginTop: 16,
                 }}
               >
-                a partir de
+                <span
+                  style={{ display: 'flex', fontSize: 24, color: t.sub, letterSpacing: 1 }}
+                >
+                  a partir de
+                </span>
                 <span
                   style={{
-                    color: t.accent,
-                    fontSize: 56,
+                    display: 'flex',
+                    fontSize: 66,
                     fontWeight: 700,
-                    marginLeft: 16,
+                    color: t.accent,
+                    lineHeight: 1,
                   }}
                 >
                   {formatPrice(Number(product.price))}
@@ -306,8 +351,14 @@ export async function GET(
           )}
         </div>
 
-        {/* Rodapé: CTA */}
-        <div style={{ display: 'flex' }}>
+        {/* Rodapé: CTA + marca */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <div
             style={{
               display: 'flex',
@@ -315,12 +366,24 @@ export async function GET(
               borderRadius: 999,
               background: t.accent,
               color: t.accentFg,
-              fontSize: 34,
+              fontSize: 32,
               fontWeight: 700,
             }}
           >
             {content.cta || 'Chame no WhatsApp'}
           </div>
+          {brandName && (
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 24,
+                fontWeight: 600,
+                color: t.sub,
+              }}
+            >
+              {brandName}
+            </div>
+          )}
         </div>
       </div>
     ),
