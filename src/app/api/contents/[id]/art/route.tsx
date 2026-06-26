@@ -1,7 +1,11 @@
 import { ImageResponse } from 'next/og'
 import { createClient } from '@/lib/supabase/server'
 
-export const dynamic = 'force-dynamic'
+// Cache da arte renderizada no navegador do próprio usuário (private, não no
+// CDN compartilhado, pois a rota é autenticada). Evita re-renderizar a MESMA
+// arte (mesmo template/formato) a cada toggle na galeria ou na exportação —
+// só a 1ª geração de cada variante custa um render no Vercel.
+const ART_CACHE_CONTROL = 'private, max-age=86400'
 
 type TemplateKey = 'premium' | 'minimalista' | 'moderno' | 'corporativo'
 
@@ -97,31 +101,50 @@ export async function GET(
   }
 
   // Descobre o produto principal (direto ou via carrossel)
-  let product: { name: string; price: number } | null = null
+  type ArtProduct = { name: string; price: number; image_url: string | null }
+  let product: ArtProduct | null = null
   if (content.product_id) {
     const { data } = await supabase
       .from('products')
-      .select('name, price')
+      .select('name, price, image_url')
       .eq('id', content.product_id)
       .single()
     product = data
   } else {
     const { data } = await supabase
       .from('content_products')
-      .select('products(name, price)')
+      .select('products(name, price, image_url)')
       .eq('content_id', content.id)
       .limit(1)
       .single()
     // products pode vir como objeto único
     const p = (data?.products ?? null) as unknown as
-      | { name: string; price: number }
-      | { name: string; price: number }[]
+      | ArtProduct
+      | ArtProduct[]
       | null
     product = Array.isArray(p) ? p[0] ?? null : p
   }
 
+  // Carrega a foto do produto como data URL. Se falhar (rede/404), a arte sai
+  // sem foto em vez de quebrar — fallback seguro.
+  let productImage: string | null = null
+  if (product?.image_url) {
+    try {
+      const r = await fetch(product.image_url)
+      if (r.ok) {
+        const ct = r.headers.get('content-type') || 'image/jpeg'
+        const buf = Buffer.from(await r.arrayBuffer())
+        productImage = `data:${ct};base64,${buf.toString('base64')}`
+      }
+    } catch {
+      /* ignora: arte sem foto */
+    }
+  }
+
   const titleSize = isStory ? 80 : 68
   const padding = isStory ? 96 : 80
+  const innerWidth = width - padding * 2
+  const imageHeight = isStory ? 720 : 380
 
   return new ImageResponse(
     (
@@ -189,8 +212,34 @@ export async function GET(
           </div>
         </div>
 
-        {/* Centro: título + produto */}
+        {/* Centro: foto + título + produto */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {productImage && (
+            <div
+              style={{
+                display: 'flex',
+                width: innerWidth,
+                height: imageHeight,
+                marginBottom: 48,
+                borderRadius: 32,
+                overflow: 'hidden',
+                border: `3px solid ${t.accent}`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={productImage}
+                width={innerWidth}
+                height={imageHeight}
+                style={{
+                  width: innerWidth,
+                  height: imageHeight,
+                  objectFit: 'cover',
+                }}
+                alt=""
+              />
+            </div>
+          )}
           <div
             style={{
               display: 'flex',
@@ -275,6 +324,6 @@ export async function GET(
         </div>
       </div>
     ),
-    { width, height }
+    { width, height, headers: { 'Cache-Control': ART_CACHE_CONTROL } }
   )
 }

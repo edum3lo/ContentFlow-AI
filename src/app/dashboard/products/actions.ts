@@ -57,6 +57,37 @@ export async function updateProduct(
   return { success: true }
 }
 
+export async function setProductImage(
+  id: string,
+  path: string
+): Promise<ActionResult> {
+  const { supabase, user } = await getUser()
+  if (!user) return { error: 'Não autorizado' }
+
+  // Segurança: a imagem precisa estar na pasta do próprio usuário.
+  if (!path.startsWith(`${user.id}/`)) {
+    return { error: 'Acesso negado à imagem' }
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('products')
+    .getPublicUrl(path)
+
+  const { error } = await supabase
+    .from('products')
+    .update({
+      image_url: publicUrlData.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return { error: 'Falha ao salvar a imagem' }
+
+  revalidate()
+  return { success: true }
+}
+
 export async function setProductStatus(
   id: string,
   status: 'review' | 'approved' | 'rejected'

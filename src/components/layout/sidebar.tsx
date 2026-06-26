@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navRoutes, isRouteActive } from './nav-routes'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -30,7 +31,7 @@ export function Sidebar() {
               className={cn(
                 'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 active
-                  ? 'bg-sidebar-primary/15 text-sidebar-primary-foreground'
+                  ? 'bg-sidebar-primary/15 text-sidebar-primary'
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
               )}
             >
@@ -48,7 +49,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-3 pb-6">
+      <div className="px-3 pb-6 flex flex-col gap-4">
         <div className="rounded-xl bg-sidebar-accent p-4">
           <p className="text-sm font-medium">Pronto para postar?</p>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
@@ -60,6 +61,11 @@ export function Sidebar() {
           >
             Enviar catálogo
           </Link>
+        </div>
+        
+        <div className="flex items-center justify-between px-2">
+          <span className="text-xs font-medium text-sidebar-foreground/60">Aparência</span>
+          <ThemeToggle />
         </div>
       </div>
     </div>

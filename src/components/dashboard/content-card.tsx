@@ -60,7 +60,8 @@ const ART_TEMPLATES = [
 function ArtExport({ contentId }: { contentId: string }) {
   const [open, setOpen] = useState(false)
   const [template, setTemplate] = useState('moderno')
-  const [format, setFormat] = useState<'post' | 'story'>('post')
+  // Padrão 9:16 (vertical) — formato de TikTok, Reels e Stories.
+  const [format, setFormat] = useState<'post' | 'story'>('story')
 
   const url = `/api/contents/${contentId}/art?template=${template}&format=${format}`
 
@@ -113,7 +114,7 @@ function ArtExport({ contentId }: { contentId: string }) {
                     : 'bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
-                {f === 'post' ? 'Post (1:1)' : 'Story (9:16)'}
+                {f === 'post' ? 'Feed (1:1)' : 'TikTok/Reels (9:16)'}
               </button>
             ))}
           </div>
@@ -233,6 +234,13 @@ export function ContentCard({ content }: { content: GeneratedContent }) {
 
         {/* Título */}
         <h3 className="text-base font-semibold leading-snug">{content.title}</h3>
+
+        {/* Aviso: vídeo é roteiro, não o arquivo de vídeo pronto */}
+        {content.type === 'video' && (
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            🎬 Este é o <span className="font-medium text-foreground">roteiro pronto para você gravar</span> — o vídeo em si você grava seguindo os passos abaixo.
+          </p>
+        )}
 
         {/* Slides (story / carrossel) */}
         {slides.length > 0 && (

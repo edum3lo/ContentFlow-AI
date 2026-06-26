@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import {
   Check,
   Pencil,
@@ -10,8 +10,10 @@ import {
   RotateCcw,
   CheckCheck,
   Ban,
+  ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +28,7 @@ import {
 import {
   updateProduct,
   setProductStatus,
+  setProductImage,
   deleteProduct,
   approveAllPending,
 } from '@/app/dashboard/products/actions'
@@ -40,6 +43,7 @@ type Product = {
   price: number
   confidence_score: number | null
   status: Status
+  image_url: string | null
 }
 
 type Filter = 'all' | 'review' | 'approved' | 'rejected'
@@ -62,7 +66,49 @@ export function ProductsTable({ products }: { products: Product[] }) {
   const [form, setForm] = useState({ name: '', category: '', price: '', brand: '' })
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const uploadPhoto = async (productId: string, file: File) => {
+    setError(null)
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setError('Envie uma imagem PNG ou JPG.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Imagem muito grande. O limite é 5 MB.')
+      return
+    }
+
+    setUploadingId(productId)
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError('Sessão expirada. Faça login novamente.')
+        return
+      }
+
+      // Upload direto ao Storage, na pasta do usuário (bucket "products").
+      const ext = file.name.split('.').pop()
+      const path = `${user.id}/${productId}-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('products')
+        .upload(path, file, { contentType: file.type, upsert: true })
+      if (upErr) {
+        setError('Falha ao enviar a imagem. Tente novamente.')
+        return
+      }
+
+      const res = await setProductImage(productId, path)
+      if ('error' in res) setError(res.error)
+    } finally {
+      setUploadingId(null)
+    }
+  }
 
   const counts = useMemo(
     () => ({
@@ -179,8 +225,9 @@ export function ProductsTable({ products }: { products: Product[] }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-14">Foto</TableHead>
               <TableHead>Nome</TableHead>
-              <TableHead>Categoria</TableHead>
+              <TableHead className="hidden md:table-cell">Categoria</TableHead>
               <TableHead>Preço</TableHead>
               <TableHead className="hidden sm:table-cell">Confiança</TableHead>
               <TableHead>Status</TableHead>
@@ -190,7 +237,7 @@ export function ProductsTable({ products }: { products: Product[] }) {
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                   Nenhum produto nesta visão.
                 </TableCell>
               </TableRow>
@@ -202,6 +249,13 @@ export function ProductsTable({ products }: { products: Product[] }) {
                     {editing ? (
                       <>
                         <TableCell>
+                          <PhotoCell
+                            product={p}
+                            uploading={uploadingId === p.id}
+                            onPick={(file) => uploadPhoto(p.id, file)}
+                          />
+                        </TableCell>
+                        <TableCell>
                           <Input
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -209,7 +263,7 @@ export function ProductsTable({ products }: { products: Product[] }) {
                             placeholder="Nome"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           <Input
                             value={form.category}
                             onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -250,8 +304,15 @@ export function ProductsTable({ products }: { products: Product[] }) {
                       </>
                     ) : (
                       <>
+                        <TableCell>
+                          <PhotoCell
+                            product={p}
+                            uploading={uploadingId === p.id}
+                            onPick={(file) => uploadPhoto(p.id, file)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="hidden text-muted-foreground md:table-cell">
                           {p.category}
                         </TableCell>
                         <TableCell>{formatPrice(Number(p.price))}</TableCell>
@@ -318,6 +379,55 @@ export function ProductsTable({ products }: { products: Product[] }) {
         </Table>
       </div>
     </div>
+  )
+}
+
+function PhotoCell({
+  product,
+  uploading,
+  onPick,
+}: {
+  product: Product
+  uploading: boolean
+  onPick: (file: File) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        aria-label={product.image_url ? 'Trocar foto' : 'Adicionar foto'}
+        title={product.image_url ? 'Trocar foto' : 'Adicionar foto'}
+        className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground disabled:opacity-50"
+      >
+        {uploading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : product.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <ImagePlus className="h-4 w-4" />
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onPick(file)
+          e.target.value = ''
+        }}
+      />
+    </>
   )
 }
 

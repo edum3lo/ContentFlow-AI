@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
-import { validateUpload } from '@/lib/upload-validation'
+import { validateUpload, ALLOWED_UPLOAD_TYPES } from '@/lib/upload-validation'
 
 // A leitura por IA (Vision/OCR) pode passar dos ~10s padrão do Vercel.
 // 60s é o máximo no plano Hobby; sem isso a função estoura e retorna HTML.
@@ -37,33 +37,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const formData = await request.formData()
-    const file = formData.get('file') as File
+    // O arquivo já foi enviado direto ao Storage pelo navegador. Aqui chega
+    // apenas o caminho (corpo minúsculo), evitando o limite de ~4,5 MB do Vercel.
+    const body = await request.json().catch(() => null)
+    const path = typeof body?.path === 'string' ? body.path : undefined
+    const originalFilename =
+      typeof body?.originalFilename === 'string' ? body.originalFilename : undefined
+    const fileType = typeof body?.fileType === 'string' ? body.fileType : undefined
 
-    // Validação server-side de tipo e tamanho (ver validateUpload)
-    const validation = validateUpload(file)
+    if (!path || !originalFilename || !fileType) {
+      return NextResponse.json({ error: 'Requisição inválida' }, { status: 400 })
+    }
+
+    // Segurança: o arquivo precisa estar na pasta do próprio usuário.
+    // Impede que alguém peça o processamento de um arquivo de outra pessoa.
+    if (!path.startsWith(`${user.id}/`)) {
+      return NextResponse.json({ error: 'Acesso negado ao arquivo' }, { status: 403 })
+    }
+
+    if (!ALLOWED_UPLOAD_TYPES.includes(fileType as (typeof ALLOWED_UPLOAD_TYPES)[number])) {
+      return NextResponse.json(
+        { error: 'Tipo de arquivo não suportado. Envie PDF, PNG ou JPG.' },
+        { status: 400 }
+      )
+    }
+
+    // 1. Baixa o arquivo do Storage (a policy de leitura da própria pasta cobre isto)
+    const { data: blob, error: downloadError } = await supabase.storage
+      .from('catalogs')
+      .download(path)
+
+    if (downloadError || !blob) {
+      console.error('Erro ao baixar do Storage:', downloadError)
+      return NextResponse.json({ error: 'Arquivo não encontrado no Storage' }, { status: 404 })
+    }
+
+    // Revalida o tamanho real no servidor (não confiamos só no client).
+    const validation = validateUpload({ type: fileType, size: blob.size })
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
 
-    // 1. Upload para o Supabase Storage
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-    const fileType = file.type
-
-    const { error: uploadError } = await supabase.storage
-      .from('catalogs')
-      .upload(fileName, file)
-
-    if (uploadError) {
-      console.error('Erro de upload:', uploadError)
-      return NextResponse.json({ error: 'Falha ao salvar arquivo no Storage' }, { status: 500 })
-    }
-
-    // Obter URL pública
+    // URL pública (bucket é público) para salvar no registro do catálogo.
     const { data: publicUrlData } = supabase.storage
       .from('catalogs')
-      .getPublicUrl(fileName)
+      .getPublicUrl(path)
 
     const fileUrl = publicUrlData.publicUrl
 
@@ -73,7 +91,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         file_url: fileUrl,
-        original_filename: file.name,
+        original_filename: originalFilename,
         file_type: fileType,
         status: 'processing',
       })
@@ -87,7 +105,7 @@ export async function POST(request: Request) {
 
     // 3. Processar com OpenAI
     try {
-      const buffer = Buffer.from(await file.arrayBuffer())
+      const buffer = Buffer.from(await blob.arrayBuffer())
       const openai = getOpenAI()
       let extractedData: ExtractedProduct[] = []
 
@@ -158,6 +176,12 @@ Retorne SOMENTE o JSON válido, sem markdown.`
 
       // 4. Salvar produtos extraídos no banco
       if (extractedData.length > 0) {
+        // Foto de produto ÚNICO: se for uma imagem com 1 produto só, a própria
+        // imagem enviada vira a foto daquele produto (entra na arte depois).
+        const isImage = !fileType.includes('pdf')
+        const autoImageUrl =
+          isImage && extractedData.length === 1 ? fileUrl : null
+
         const productsToInsert = extractedData.map(p => ({
           user_id: user.id,
           catalog_id: catalog.id,
@@ -169,7 +193,8 @@ Retorne SOMENTE o JSON válido, sem markdown.`
           extracted_price_text: p.extracted_price_text || null,
           description: p.description || null,
           confidence_score: p.confidence_score || 1,
-          source_type: fileType.includes('pdf') ? 'pdf' : 'image',
+          source_type: isImage ? 'image' : 'pdf',
+          image_url: autoImageUrl,
           status: 'review'
         }))
 

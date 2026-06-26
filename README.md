@@ -15,14 +15,13 @@ legendas e hashtags prontos para publicar no Instagram, TikTok, Facebook e Whats
 
 - **Autenticação** — cadastro, login e **recuperação de senha** (Supabase Auth)
 - **Upload + extração por IA** — PDF (texto) e imagens (Vision), via OpenAI `gpt-4o`
+- **Dashboard Inteligente (Tracker)** — onboard em 4 passos dinâmicos e indicativos do fluxo.
 - **Banco de produtos** — CRUD completo com **validação**: editar, aprovar, rejeitar,
   reabrir, excluir e aprovar em massa
-- **Gerador de conteúdo** — Post, Story, Carrossel e **Vídeo** (gancho, roteiro, texto
-  de tela e CTA). Só produtos **aprovados** entram na geração
-- **Exportação de arte** — gera a imagem (PNG) do post/story em 4 templates
-  (Premium, Minimalista, Moderno, Corporativo) usando `next/og`
+- **Gerador de conteúdo Avançado** — Post, Story, Carrossel e **Vídeo** (gancho, roteiro, texto
+  de tela e CTA). Geração em lote com opções de **Quantidade, Tom de Voz, Foco da Rede Social** e Roteiro Extra simultâneo.
+- **Exportação de arte e Galeria Visual** — visualização em tela cheia com seleção de formatos/templates. Exportação Mobile-First usando **Web Share API** no celular (direto pra galeria) e Fallback JSZip no desktop.
 - **Calendário de conteúdo** — plano de 7/15/30/60 dias com temas e horários sugeridos
-- **Dashboard** — métricas e atividade recente
 
 ---
 
@@ -141,13 +140,13 @@ persiste no **Supabase** (PostgreSQL + Auth + Storage) e a inteligência vem da
 ### Fluxo principal (do catálogo ao post)
 
 ```
-1. Upload         2. Extração (IA)        3. Validação        4. Geração (IA)      5. Exportação
-┌──────────┐      ┌────────────────┐      ┌──────────────┐    ┌────────────────┐   ┌──────────────┐
-│ Usuário  │      │ /api/catalogs/ │      │ /dashboard/  │    │ /api/contents/ │   │ /api/.../art │
-│ envia PDF│ ───► │ upload         │ ───► │ products     │──► │ generate       │─► │ (next/og)    │
-│ ou foto  │      │ • Storage      │      │ revisa e     │    │ post/story/    │   │ PNG p/ baixar│
-└──────────┘      │ • OCR/Vision   │      │ APROVA       │    │ carrossel/vídeo│   └──────────────┘
-                  │ • salva produ*│       └──────────────┘    └────────────────┘
+1. Upload         2. Extração (IA)        3. Validação        4. Geração (IA)        5. Exportação
+┌──────────┐      ┌────────────────┐      ┌──────────────┐    ┌──────────────────┐   ┌────────────────┐
+│ Usuário  │      │ /api/catalogs/ │      │ /dashboard/  │    │ /api/contents/   │   │ /dashboard/... │
+│ envia PDF│ ───► │ upload         │ ───► │ products     │──► │ generate         │─► │ Galeria Visual │
+│ ou foto  │      │ • Storage      │      │ revisa e     │    │ Configs Avançadas│   │ Web Share API  │
+└──────────┘      │ • OCR/Vision   │      │ APROVA       │    │ (N variações)    │   └────────────────┘
+                  │ • salva produ* │      └──────────────┘    └──────────────────┘
                   └────────────────┘
         * produtos entram como "review"; só os "approved" seguem para a geração.
 ```

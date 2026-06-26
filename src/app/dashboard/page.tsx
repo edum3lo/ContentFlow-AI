@@ -10,21 +10,65 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Check,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const [catalogsRes, productsRes, contentsRes, recentRes] = await Promise.all([
-    supabase.from('catalogs').select('id', { count: 'exact', head: true }),
-    supabase.from('products').select('id', { count: 'exact', head: true }),
-    supabase.from('generated_contents').select('id', { count: 'exact', head: true }),
-    supabase
-      .from('catalogs')
-      .select('id, original_filename, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5),
-  ])
+  const [catalogsRes, productsRes, approvedRes, contentsRes, recentRes] =
+    await Promise.all([
+      supabase.from('catalogs').select('id', { count: 'exact', head: true }),
+      supabase.from('products').select('id', { count: 'exact', head: true }),
+      supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'approved'),
+      supabase
+        .from('generated_contents')
+        .select('id', { count: 'exact', head: true }),
+      supabase
+        .from('catalogs')
+        .select('id, original_filename, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ])
+
+  // Passos do fluxo: cada um "concluído" conforme os dados do usuário.
+  const pipeline = [
+    {
+      n: 1,
+      label: 'Enviar catálogo',
+      desc: 'PDF, lista ou foto',
+      href: '/dashboard/catalogs',
+      done: (catalogsRes.count ?? 0) > 0,
+    },
+    {
+      n: 2,
+      label: 'Aprovar produtos',
+      desc: 'Revise e aprove',
+      href: '/dashboard/products',
+      done: (approvedRes.count ?? 0) > 0,
+    },
+    {
+      n: 3,
+      label: 'Gerar conteúdo',
+      desc: 'Posts em lote',
+      href: '/dashboard/contents',
+      done: (contentsRes.count ?? 0) > 0,
+    },
+    {
+      n: 4,
+      label: 'Exportar e postar',
+      desc: 'Baixe e publique',
+      href: '/dashboard/contents',
+      done: false,
+    },
+  ]
+  // Passo atual = primeiro ainda não concluído.
+  const firstUndone = pipeline.findIndex((s) => !s.done)
+  const activeIndex = firstUndone === -1 ? pipeline.length - 1 : firstUndone
 
   const stats = [
     {
@@ -60,6 +104,8 @@ export default async function DashboardPage() {
           Visão geral dos seus catálogos, produtos e conteúdos.
         </p>
       </div>
+
+      <PipelineStepper steps={pipeline} activeIndex={activeIndex} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((s) => (
@@ -142,6 +188,89 @@ export default async function DashboardPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+type Step = {
+  n: number
+  label: string
+  desc: string
+  href: string
+  done: boolean
+}
+
+function PipelineStepper({
+  steps,
+  activeIndex,
+}: {
+  steps: Step[]
+  activeIndex: number
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          Seu fluxo em 4 passos
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {steps.map((s, i) => {
+            const status = s.done
+              ? 'done'
+              : i === activeIndex
+                ? 'current'
+                : 'todo'
+            return (
+              <li key={s.n}>
+                <Link
+                  href={s.href}
+                  className={cn(
+                    'group flex h-full flex-col gap-2 rounded-xl border p-4 transition-colors',
+                    status === 'current'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                        status === 'done' &&
+                          'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+                        status === 'current' &&
+                          'bg-primary text-primary-foreground',
+                        status === 'todo' && 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {status === 'done' ? <Check className="h-4 w-4" /> : s.n}
+                    </span>
+                    {status === 'current' && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        Você está aqui
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <p
+                      className={cn(
+                        'text-sm font-semibold',
+                        status === 'todo'
+                          ? 'text-muted-foreground'
+                          : 'text-foreground'
+                      )}
+                    >
+                      {s.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{s.desc}</p>
+                  </div>
+                </Link>
+              </li>
+            )
+          })}
+        </ol>
+      </CardContent>
+    </Card>
   )
 }
 

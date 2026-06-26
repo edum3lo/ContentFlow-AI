@@ -13,6 +13,7 @@ import {
   ContentCard,
   type GeneratedContent,
 } from '@/components/dashboard/content-card'
+import { BulkExport } from '@/components/dashboard/bulk-export'
 
 export default async function ContentsPage() {
   const supabase = await createClient()
@@ -65,6 +66,8 @@ export default async function ContentsPage() {
 
         {/* Lista de conteúdos gerados */}
         <div className="space-y-4 lg:col-span-2">
+          {contents.length > 0 && <BulkExport contents={contents} />}
+
           {contents.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
               <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">

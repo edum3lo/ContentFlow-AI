@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LandingMobileMenu } from "@/components/landing-mobile-menu";
 import {
   ArrowRight,
   Sparkles,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   Quote,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const features = [
   {
@@ -105,7 +107,7 @@ function Logo({ className = "" }: { className?: string }) {
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Logo />
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
           <a href="#como-funciona" className="transition-colors hover:text-foreground">
@@ -118,10 +120,12 @@ function SiteHeader() {
             Para quem é
           </a>
         </nav>
-        <div className="flex items-center gap-2">
+        {/* CTAs desktop */}
+        <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <Link
             href="/login"
-            className="hidden rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:inline-flex"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
             Entrar
           </Link>
@@ -133,6 +137,8 @@ function SiteHeader() {
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
+        {/* Menu mobile (hambúrguer) */}
+        <LandingMobileMenu />
       </div>
     </header>
   );
@@ -153,10 +159,10 @@ function Hero() {
           </span>
 
           <h1 className="mt-8 text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
-            Transforme catálogos em <br className="hidden sm:block" />
+            Catálogos viram{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
               conteúdo pronto
-            </span> para redes sociais
+            </span>
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
@@ -210,9 +216,9 @@ function HeroVisual() {
             lista-precos.pdf
           </div>
           <div className="space-y-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-            <div className="flex justify-between border-b border-white/5 pb-2"><p>Retatrutide 40mg</p> <p className="text-foreground">R$910</p></div>
-            <div className="flex justify-between border-b border-white/5 pb-2"><p>Tirzepatida 75mg</p> <p className="text-foreground">R$1250</p></div>
-            <div className="flex justify-between border-b border-white/5 pb-2"><p>Semaglutida 5mg</p> <p className="text-foreground">R$640</p></div>
+            <div className="flex justify-between border-b border-white/5 pb-2"><p>Produto Premium</p> <p className="text-foreground">R$189</p></div>
+            <div className="flex justify-between border-b border-white/5 pb-2"><p>Kit Especial</p> <p className="text-foreground">R$249</p></div>
+            <div className="flex justify-between border-b border-white/5 pb-2"><p>Linha Essencial</p> <p className="text-foreground">R$99</p></div>
             <p className="opacity-50 mt-2">Carregando mais...</p>
           </div>
         </div>
@@ -233,8 +239,8 @@ function HeroVisual() {
                   que você buscava
                 </p>
                 <div className="mt-8">
-                  <p className="text-2xl font-bold">Retatrutide 40mg</p>
-                  <p className="text-base opacity-90 font-medium mt-1">a partir de <span className="text-3xl font-extrabold text-accent ml-1">R$ 910</span></p>
+                  <p className="text-2xl font-bold">Produto Premium</p>
+                  <p className="text-base opacity-90 font-medium mt-1">a partir de <span className="text-3xl font-extrabold text-background ml-1">R$ 189</span></p>
                 </div>
               </div>
             </div>
@@ -245,7 +251,7 @@ function HeroVisual() {
               direct e garanta o seu. ✨
             </p>
             <p className="text-[12px] font-bold text-primary tracking-wide">
-              #saude #bemestar #novidade
+              #novidade #oferta #promoção
             </p>
           </div>
         </div>
@@ -448,8 +454,7 @@ function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 sm:flex-row">
         <Logo />
         <p className="text-sm text-muted-foreground">
-          © {new Date().getFullYear()} ContentFlow AI — Conteúdo de redes
-          sociais com Inteligência Artificial.
+          © {new Date().getFullYear()} ContentFlow AI — Dev by Eduardo Melo
         </p>
       </div>
     </footer>

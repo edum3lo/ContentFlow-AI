@@ -25,11 +25,19 @@ const formatPrice = (price: number) =>
     price
   )
 
-function buildInstructions(type: ContentType) {
-  const base = `Você é um especialista em marketing para redes sociais (Instagram, TikTok, Facebook e WhatsApp) focado em pequenos negócios no Brasil.
-Escreva sempre em português do Brasil, com tom persuasivo, claro e profissional, usando emojis com moderação.
+function buildInstructions(type: ContentType, tone?: string, network?: string) {
+  let base = `Você é um especialista em marketing para redes sociais focado em negócios locais e vendas no Brasil.
+Escreva sempre em português do Brasil, usando emojis com moderação.
 Nunca invente preços ou características: use exatamente os dados do(s) produto(s) fornecido(s).
 Retorne SOMENTE um JSON válido, sem markdown e sem comentários.`
+
+  if (tone) {
+    base += `\nO TOM DE VOZ DEVE SER: ${tone}. Adapte a linguagem da legenda e do título rigorosamente para esse tom.`
+  }
+  
+  if (network) {
+    base += `\nA REDE SOCIAL FOCO É: ${network}. Adapte o tamanho e a estrutura do texto para essa rede (ex: legendas mais curtas e diretas para TikTok, legendas mais ricas para Instagram Feed).`
+  }
 
   if (type === 'post') {
     return `${base}
@@ -111,6 +119,21 @@ export async function POST(request: Request) {
     const productIds: string[] = Array.isArray(body?.productIds)
       ? body.productIds
       : []
+      
+    const tone = body?.tone as string | undefined
+    const network = body?.network as string | undefined
+    const generateScript = body?.generateScript === true
+    // Número de variações distintas a gerar numa ÚNICA chamada (1 a 5).
+    const variations = Math.min(
+      Math.max(parseInt(String(body?.variations ?? 1), 10) || 1, 1),
+      5
+    )
+
+    // Instrução opcional do usuário (prompt). Limitada para evitar abuso/custo.
+    const instruction =
+      typeof body?.instruction === 'string'
+        ? body.instruction.trim().slice(0, 500)
+        : ''
 
     if (!type || !VALID_TYPES.includes(type)) {
       return NextResponse.json(
@@ -162,15 +185,27 @@ export async function POST(request: Request) {
       })
       .join('\n\n')
 
+    let finalInstruction = instruction
+      ? `\n\nInstrução adicional do usuário: ${instruction}`
+      : ''
+      
+    if (generateScript && type !== 'video') {
+      finalInstruction += `\n\nIMPORTANTE: O usuário pediu um roteiro de vídeo junto com esse conteúdo. Adicione um campo 'slides' no JSON contendo pelo menos um objeto { "kind": "roteiro", "text": "Passos para gravar o vídeo..." } e { "kind": "gancho", "text": "..." }.`
+    }
+    
+    if (variations > 1) {
+      finalInstruction += `\n\nGere ${variations} VARIAÇÕES bem diferentes entre si — ângulos de venda, ganchos e textos distintos, sem repetir abordagens. Retorne um JSON no formato { "variations": [ ... ] }, onde CADA item do array segue exatamente o formato pedido acima.`
+    }
+
     const openai = getOpenAI()
     const response = await openai.chat.completions.create({
       model: GENERATION_MODEL,
-      temperature: 0.8,
+      temperature: 0.9,
       messages: [
-        { role: 'system', content: buildInstructions(type) },
+        { role: 'system', content: buildInstructions(type, tone, network) },
         {
           role: 'user',
-          content: `Gere o conteúdo com base no(s) seguinte(s) produto(s):\n\n${productsText}`,
+          content: `Gere o conteúdo com base no(s) seguinte(s) produto(s):\n\n${productsText}${finalInstruction}`,
         },
       ],
       response_format: { type: 'json_object' },
@@ -200,49 +235,78 @@ export async function POST(request: Request) {
       )
     }
 
-    const slides = parsed.slides ?? null
+    // Normaliza para uma lista de itens (1 conteúdo, ou várias variações).
+    type GenItem = {
+      title?: string
+      caption?: string
+      hashtags?: string
+      cta?: string
+      slides?: unknown
+    }
+    const variationList = (parsed as { variations?: unknown }).variations
+    const items: GenItem[] =
+      variations > 1 && Array.isArray(variationList)
+        ? (variationList as GenItem[])
+        : [parsed]
 
-    const videoScript = type === 'video' ? buildVideoScript(slides) : null
+    if (items.length === 0) {
+      return NextResponse.json(
+        { error: 'A IA não retornou variações' },
+        { status: 502 }
+      )
+    }
 
-    const { data: inserted, error: insertError } = await supabase
-      .from('generated_contents')
-      .insert({
-        user_id: user.id,
-        product_id: type === 'carousel' ? null : products[0].id,
-        type,
-        title: parsed.title || 'Conteúdo gerado',
-        caption: parsed.caption || '',
-        hashtags: parsed.hashtags || '',
-        cta: parsed.cta || '',
-        video_script: videoScript,
-        content_data: slides ? { slides } : null,
-      })
-      .select()
-      .single()
+    let savedCount = 0
+    for (const item of items) {
+      const slides = item.slides ?? null
+      const videoScript =
+        type === 'video' || generateScript ? buildVideoScript(slides) : null
 
-    if (insertError || !inserted) {
-      console.error('Erro ao salvar conteúdo:', insertError)
+      const { data: inserted, error: insertError } = await supabase
+        .from('generated_contents')
+        .insert({
+          user_id: user.id,
+          product_id: type === 'carousel' ? null : products[0].id,
+          type,
+          title: item.title || 'Conteúdo gerado',
+          caption: item.caption || '',
+          hashtags: item.hashtags || '',
+          cta: item.cta || '',
+          video_script: videoScript,
+          content_data: slides ? { slides } : null,
+        })
+        .select()
+        .single()
+
+      if (insertError || !inserted) {
+        console.error('Erro ao salvar conteúdo:', insertError)
+        continue
+      }
+      savedCount++
+
+      // Vincula produtos do carrossel (relação N:N) para cada variação
+      if (type === 'carousel') {
+        const links = products.map((p) => ({
+          content_id: inserted.id,
+          product_id: p.id,
+        }))
+        const { error: linkError } = await supabase
+          .from('content_products')
+          .insert(links)
+        if (linkError) {
+          console.error('Erro ao vincular produtos do carrossel:', linkError)
+        }
+      }
+    }
+
+    if (savedCount === 0) {
       return NextResponse.json(
         { error: 'Falha ao salvar o conteúdo gerado' },
         { status: 500 }
       )
     }
 
-    // Vincula produtos do carrossel (relação N:N)
-    if (type === 'carousel') {
-      const links = products.map((p) => ({
-        content_id: inserted.id,
-        product_id: p.id,
-      }))
-      const { error: linkError } = await supabase
-        .from('content_products')
-        .insert(links)
-      if (linkError) {
-        console.error('Erro ao vincular produtos do carrossel:', linkError)
-      }
-    }
-
-    return NextResponse.json({ success: true, content: inserted })
+    return NextResponse.json({ success: true, count: savedCount })
   } catch (error) {
     console.error('Erro inesperado ao gerar conteúdo:', error)
     return NextResponse.json(
