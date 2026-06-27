@@ -132,7 +132,7 @@ function ArtExport({ contentId }: { contentId: string }) {
                     : 'bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
-                {f === 'post' ? 'Feed (1:1)' : 'TikTok/Reels (9:16)'}
+                {f === 'post' ? 'Feed (4:5)' : 'Stories/Reels (9:16)'}
               </button>
             ))}
           </div>

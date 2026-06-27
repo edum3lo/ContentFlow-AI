@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navRoutes, isRouteActive } from './nav-routes'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -21,7 +21,17 @@ export function Sidebar() {
         </span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-6">
+      <div className="px-3 pt-4">
+        <Link
+          href="/dashboard/catalogs"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-4 py-2.5 text-sm font-semibold text-sidebar-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <Plus className="h-4 w-4" />
+          Novo Catálogo
+        </Link>
+      </div>
+
+      <nav className="flex-1 space-y-1 px-3 py-4">
         {navRoutes.map((route) => {
           const active = isRouteActive(pathname, route.href)
           return (

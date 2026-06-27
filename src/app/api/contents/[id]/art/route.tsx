@@ -135,7 +135,8 @@ export async function GET(
   const isStory = searchParams.get('format') === 'story'
 
   const width = 1080
-  const height = isStory ? 1920 : 1080
+  // Feed 4:5 (1080x1350) e Story/Reels 9:16 (1080x1920).
+  const height = isStory ? 1920 : 1350
 
   const supabase = await createClient()
   const {
