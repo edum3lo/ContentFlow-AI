@@ -56,6 +56,7 @@ const ART_TEMPLATES = [
   { key: 'minimalista', label: 'Minimalista' },
   { key: 'corporativo', label: 'Corporativo' },
   { key: 'ia', label: 'IA ✨' },
+  { key: 'placid', label: 'Meu design' },
 ]
 
 function ArtExport({ contentId }: { contentId: string }) {
@@ -106,6 +107,13 @@ function ArtExport({ contentId }: { contentId: string }) {
             <p className="rounded-md bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground">
               ✨ Fundo gerado por IA na cor da sua marca. A 1ª vez leva alguns
               segundos; depois é instantâneo.
+            </p>
+          )}
+
+          {template === 'placid' && (
+            <p className="rounded-md bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground">
+              🎨 Usa o seu template do Placid (texto e preço perfeitos). Precisa
+              estar configurado; senão, mostra o template padrão.
             </p>
           )}
 

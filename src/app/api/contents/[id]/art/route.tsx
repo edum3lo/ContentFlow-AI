@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateAiBackground } from '@/lib/art-background'
+import { renderPlacidImage, type PlacidLayers } from '@/lib/placid'
 
 // Geração do fundo por IA (template "ia") pode passar dos ~10s padrão.
 export const maxDuration = 60
@@ -219,6 +220,46 @@ export async function GET(
   const accent = brandColor || t.accent
   const accentFg = brandColor ? contrastColor(brandColor) : t.accentFg
 
+  // Template do designer (Placid): renderiza no SEU design, preenchendo as
+  // camadas. Texto/preço sempre perfeitos. Requer config (token + template UUID).
+  const placidToken = process.env.PLACID_API_TOKEN
+  const placidTemplate = isStory
+    ? process.env.PLACID_TEMPLATE_STORY
+    : process.env.PLACID_TEMPLATE_FEED
+  if (templateParam === 'placid' && placidToken && placidTemplate) {
+    // Os NOMES das camadas abaixo precisam existir no seu template do Placid.
+    const layers: PlacidLayers = {
+      title: { text: content.title || '' },
+      cta: { text: content.cta || 'Chame no WhatsApp' },
+    }
+    if (product) {
+      layers.product_name = { text: product.name }
+      layers.price = { text: formatPrice(Number(product.price)) }
+      if (product.image_url) layers.product_image = { image: product.image_url }
+    }
+    if (brandName) layers.brand = { text: brandName }
+    if (profile?.brand_logo_url) layers.logo = { image: profile.brand_logo_url }
+
+    const placidUrl = await renderPlacidImage({
+      apiToken: placidToken,
+      templateUuid: placidTemplate,
+      layers,
+    })
+    if (placidUrl) {
+      const img = await fetch(placidUrl)
+      if (img.ok) {
+        const buf = Buffer.from(await img.arrayBuffer())
+        return new Response(new Uint8Array(buf), {
+          headers: {
+            'Content-Type': 'image/png',
+            'Cache-Control': ART_CACHE_CONTROL,
+          },
+        })
+      }
+    }
+    // Se o Placid falhar, segue pro template padrão abaixo (fallback seguro).
+  }
+
   // Fase 2: fundo gerado por IA (na cor da marca), cacheado por marca/formato.
   const aiBackground = isAi
     ? await getOrCreateAiBackground({
@@ -375,19 +416,21 @@ export async function GET(
                     width: photoSize,
                     height: photoSize,
                     marginBottom: 44,
-                    borderRadius: 40,
+                    borderRadius: 48,
                     overflow: 'hidden',
-                    border: `1px solid ${t.badgeBg}`,
+                    border: `2px solid ${t.badgeBg}`,
+                    boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+                    background: '#ffffff', // Força fundo branco caso a imagem seja PNG com transparência
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={productImage}
-                    width={photoSize}
-                    height={photoSize}
                     style={{
-                      width: photoSize,
-                      height: photoSize,
+                      width: '100%',
+                      height: '100%',
                       objectFit: 'cover',
                     }}
                     alt=""
@@ -398,7 +441,7 @@ export async function GET(
                 style={{
                   display: 'flex',
                   textAlign: 'center',
-                  fontSize: titleSize,
+                  fontSize: titleSize * 1.1, // Título 10% maior
                   fontWeight: 800,
                   lineHeight: 1.05,
                   letterSpacing: -1.5,
@@ -419,7 +462,7 @@ export async function GET(
                   <div
                     style={{
                       display: 'flex',
-                      fontSize: 38,
+                      fontSize: 48,
                       fontWeight: 600,
                       textAlign: 'center',
                       maxWidth: '90%',
@@ -432,12 +475,13 @@ export async function GET(
                     style={{
                       display: 'flex',
                       marginTop: 22,
-                      padding: '16px 40px',
+                      padding: '20px 48px',
                       borderRadius: 999,
                       background: accent,
                       color: accentFg,
-                      fontSize: 52,
+                      fontSize: 56, // Preço maior
                       fontWeight: 800,
+                      boxShadow: `0 12px 32px ${t.badgeBg}`, // Sombra no preço
                     }}
                   >
                     {formatPrice(Number(product.price))}

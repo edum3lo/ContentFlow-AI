@@ -70,6 +70,21 @@ Por último, alteramos o tema Claro (Light Mode) para usar um Dourado Profundo s
 
 ---
 
+## 4. Desafios Arquiteturais: A Fronteira do Design Visual
+
+Um dos maiores aprendizados deste projeto foi entender os limites das ferramentas de renderização nativas e as decisões de Custo vs. Qualidade no desenvolvimento de software.
+
+**O Desafio:**
+O nosso motor gerava os textos com perfeição (via ChatGPT) e o layout visual em milissegundos usando `next/og` (Satori). Porém, artes de alto padrão para e-commerce (estilo Canva) exigem composição orgânica: mesclagem de camadas (blending modes), sobreposição complexa, filtros e recortes perfeitos. 
+O motor `next/og` é baseado na web (Box Model / Flexbox). Ele cria artes limpas e estruturadas, mas não consegue simular o "toque humano" do Photoshop sem que a arte pareça engessada ou programada, mesmo após o uso de fundos dinâmicos gerados por IA (DALL-E 2).
+
+**A Decisão (Trade-off):**
+Para alcançar o cobiçado "Nível Agência", seria necessário plugar o sistema a uma API profissional de Templates (como Bannerbear ou Placid) ou integrar um motor baseado em Puppeteer (Chromium Headless). Ambas as soluções trariam **custos recorrentes altos de infraestrutura** (mensalidades em dólar) e aumentariam drasticamente o tempo de carregamento da imagem (de 1s para até 15s).
+
+No contexto atual, priorizamos um SaaS **escalável e com custo zero de manutenção visual**. O sistema atua com excelência como um "Copiloto Criativo": ele faz 100% do trabalho pesado de processamento, extração de dados e copywriting, entregando uma prévia visual limpa (com layout centralizado e tipografia Poppins) que o usuário pode publicar instantaneamente ou, se preferir, usar os dados estruturados gerados (textos, roteiros, preços) para colar no seu próprio template premium do Canva.
+
+---
+
 ## Resumo para Entrevistas (Elevator Pitch)
 
 *"Eu construí um SaaS completo usando Next.js App Router e Supabase. O grande desafio técnico foi orquestrar dois fluxos distintos de Inteligência Artificial: usei o GPT-4o (Vision) na ingestão de dados, focando em precisão absoluta para ler catálogos complexos, e o GPT-4o-Mini na ponta de geração textual, processando arrays inteiros de conteúdo em uma única request. Isso garantiu que a plataforma fosse não apenas rápida e à prova de erros (por ter etapa de validação humana), mas também financeiramente escalável e lucrativa. A experiência do usuário foi finalizada com um layout responsivo focado em Mobile-First, utilizando Web Share APIs para exportação nativa de mídias."*
