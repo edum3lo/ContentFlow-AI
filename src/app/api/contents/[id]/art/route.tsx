@@ -80,6 +80,45 @@ function contrastColor(hex: string): string {
   return lum > 0.6 ? '#0b0b0b' : '#ffffff'
 }
 
+// Fonte profissional (Poppins) carregada uma vez por instância. Se a busca
+// falhar, a arte renderiza com a fonte padrão (fallback seguro).
+type FontDef = {
+  name: string
+  data: ArrayBuffer
+  weight: 400 | 600 | 700 | 800
+  style: 'normal'
+}
+let fontsPromise: Promise<FontDef[]> | null = null
+function loadFonts(): Promise<FontDef[]> {
+  if (fontsPromise) return fontsPromise
+  const base = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/poppins'
+  const files: Array<[string, FontDef['weight']]> = [
+    ['Poppins-Regular.ttf', 400],
+    ['Poppins-SemiBold.ttf', 600],
+    ['Poppins-Bold.ttf', 700],
+    ['Poppins-ExtraBold.ttf', 800],
+  ]
+  fontsPromise = Promise.all(
+    files.map(async ([file, weight]) => {
+      const r = await fetch(`${base}/${file}`)
+      if (!r.ok) throw new Error('font fetch failed')
+      const data = await r.arrayBuffer()
+      return { name: 'Poppins', data, weight, style: 'normal' as const }
+    })
+  ).catch(() => {
+    fontsPromise = null // permite tentar de novo no próximo request
+    return [] as FontDef[]
+  })
+  return fontsPromise
+}
+
+/** Hash simples e estável de string (pra escolher o layout por conteúdo). */
+function hashStr(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -198,6 +237,13 @@ export async function GET(
   const padding = isStory ? 96 : 80
   const innerWidth = width - padding * 2
   const imageHeight = isStory ? 760 : 420
+  const photoSize = isStory ? 660 : 480
+
+  const fonts = await loadFonts()
+  const fontFamily = fonts.length ? 'Poppins' : 'sans-serif'
+  // Varia o layout por conteúdo (estável): nem todos os posts ficam iguais.
+  // No modo IA mantemos o layout centralizado (combina melhor com o fundo).
+  const layout = isAi ? 1 : hashStr(content.id) % 2
 
   return new ImageResponse(
     (
@@ -212,7 +258,7 @@ export async function GET(
           background: t.bg,
           color: fg,
           position: 'relative',
-          fontFamily: 'sans-serif',
+          fontFamily,
         }}
       >
         {aiBackground ? (
@@ -276,6 +322,149 @@ export async function GET(
           </>
         )}
 
+        {layout === 1 ? (
+          <>
+            {/* Layout B (centralizado) — marca no topo */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              {brandLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={brandLogo}
+                  height={isStory ? 76 : 64}
+                  style={{
+                    height: isStory ? 76 : 64,
+                    maxWidth: 360,
+                    objectFit: 'contain',
+                  }}
+                  alt=""
+                />
+              ) : brandName ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontSize: isStory ? 36 : 32,
+                    fontWeight: 700,
+                  }}
+                >
+                  {brandName}
+                </div>
+              ) : (
+                <div style={{ display: 'flex' }} />
+              )}
+            </div>
+
+            {/* Centro centralizado */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              {productImage && (
+                <div
+                  style={{
+                    display: 'flex',
+                    width: photoSize,
+                    height: photoSize,
+                    marginBottom: 44,
+                    borderRadius: 40,
+                    overflow: 'hidden',
+                    border: `1px solid ${t.badgeBg}`,
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={productImage}
+                    width={photoSize}
+                    height={photoSize}
+                    style={{
+                      width: photoSize,
+                      height: photoSize,
+                      objectFit: 'cover',
+                    }}
+                    alt=""
+                  />
+                </div>
+              )}
+              <div
+                style={{
+                  display: 'flex',
+                  textAlign: 'center',
+                  fontSize: titleSize,
+                  fontWeight: 800,
+                  lineHeight: 1.05,
+                  letterSpacing: -1.5,
+                  maxWidth: '92%',
+                }}
+              >
+                {content.title}
+              </div>
+              {product && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    marginTop: 34,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontSize: 38,
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      maxWidth: '90%',
+                      color: fg,
+                    }}
+                  >
+                    {product.name}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      marginTop: 22,
+                      padding: '16px 40px',
+                      borderRadius: 999,
+                      background: accent,
+                      color: accentFg,
+                      fontSize: 52,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {formatPrice(Number(product.price))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé: CTA centralizado */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  padding: '24px 48px',
+                  borderRadius: 999,
+                  border: `3px solid ${accent}`,
+                  color: fg,
+                  fontSize: 32,
+                  fontWeight: 700,
+                }}
+              >
+                {content.cta || 'Chame no WhatsApp'}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         {/* Topo: marca + selo */}
         <div
           style={{
@@ -459,8 +648,10 @@ export async function GET(
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     ),
-    { width, height, headers: { 'Cache-Control': ART_CACHE_CONTROL } }
+    { width, height, fonts, headers: { 'Cache-Control': ART_CACHE_CONTROL } }
   )
 }

@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 
-// Modelo de imagem. gpt-image-1 retorna b64 e tem bom controle de cor.
-const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1'
+// Modelo oficial da OpenAI para imagens (dall-e-2 é mais barato e acessível no Tier base)
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'dall-e-2'
 
 /**
  * Retorna um fundo de arte gerado por IA, como data URL, seguindo a cor da marca.
@@ -34,16 +34,14 @@ export async function getOrCreateAiBackground(opts: {
       brandColor || '#d4af37'
     }. Soft gradients, elegant subtle geometric light shapes, sophisticated studio lighting, generous clean empty negative space to overlay text later. Absolutely no text, no letters, no numbers, no logos, no products, no people. Modern, high-end, professional marketing aesthetic.`
 
-    const params = {
+    const resp = await openai.images.generate({
       model: IMAGE_MODEL,
       prompt,
-      size: isStory ? '1024x1536' : '1024x1024',
-      quality: 'medium',
+      // DALL-E 2 suporta apenas tamanhos quadrados estritos, o máximo é 1024x1024
+      size: '1024x1024',
+      response_format: 'b64_json',
       n: 1,
-    }
-    const resp = (await openai.images.generate(
-      params as Parameters<typeof openai.images.generate>[0]
-    )) as { data?: Array<{ b64_json?: string }> }
+    })
 
     const b64 = resp.data?.[0]?.b64_json
     if (!b64) return null
