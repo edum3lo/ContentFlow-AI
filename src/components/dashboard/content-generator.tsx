@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { CONTENT_CATEGORIES, CATEGORY_ROTATION } from '@/lib/categories'
 
 type ContentType = 'post' | 'story' | 'carousel' | 'video'
 
@@ -68,6 +69,8 @@ export function ContentGenerator({ products }: { products: Product[] }) {
   const router = useRouter()
   const [type, setType] = useState<ContentType>('post')
   const [selected, setSelected] = useState<string[]>([])
+  // 'auto' = Plano automático (mistura os pilares); senão, uma categoria fixa.
+  const [category, setCategory] = useState<string>('auto')
   
   // Configurações avançadas
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -107,7 +110,13 @@ export function ContentGenerator({ products }: { products: Product[] }) {
     if (next === 'video') setGenerateScript(false)
   }
 
-  const generateOne = async (productIds: string[]) => {
+  // No "Plano automático" (auto), gira os pilares; senão usa a categoria fixa.
+  const resolveCategory = (i: number) =>
+    category === 'auto'
+      ? CATEGORY_ROTATION[i % CATEGORY_ROTATION.length]
+      : category
+
+  const generateOne = async (productIds: string[], cat: string) => {
     const res = await fetch('/api/contents/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -118,6 +127,7 @@ export function ContentGenerator({ products }: { products: Product[] }) {
         tone: tone || undefined,
         network: network || undefined,
         generateScript,
+        category: cat || undefined,
         // O backend gera TODAS as variações numa única chamada.
         variations: quantity,
       }),
@@ -144,14 +154,14 @@ export function ContentGenerator({ products }: { products: Product[] }) {
     try {
       if (isCarousel) {
         // Carrossel: uma única chamada que já gera todas as variações.
-        await generateOne(selected)
+        await generateOne(selected, resolveCategory(0))
       } else {
         // Lote: uma chamada por produto — cada uma já devolve todas as variações.
         let failures = 0
         setProgress({ done: 0, total: selected.length })
         for (let p = 0; p < selected.length; p++) {
           try {
-            await generateOne([selected[p]])
+            await generateOne([selected[p]], resolveCategory(p))
           } catch {
             failures++
           }
@@ -227,6 +237,46 @@ export function ContentGenerator({ products }: { products: Product[] }) {
             )
           })}
         </div>
+      </div>
+
+      {/* Categoria / pilar do conteúdo */}
+      <div>
+        <p className="mb-2 text-sm font-medium">Categoria do conteúdo</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setCategory('auto')}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              category === 'auto'
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-background text-muted-foreground hover:bg-muted'
+            )}
+          >
+            🎯 Plano automático
+          </button>
+          {CONTENT_CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategory(c.value)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                category === c.value
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted'
+              )}
+            >
+              {c.emoji} {c.label}
+            </button>
+          ))}
+        </div>
+        {category === 'auto' && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Mistura os pilares (educacional, benefícios, vendas, promoção...) num
+            plano equilibrado — cada produto sai com um ângulo diferente.
+          </p>
+        )}
       </div>
 
       {/* 2. Seleção de produtos */}

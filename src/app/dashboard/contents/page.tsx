@@ -9,10 +9,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { ContentGenerator } from '@/components/dashboard/content-generator'
-import {
-  ContentCard,
-  type GeneratedContent,
-} from '@/components/dashboard/content-card'
+import { type GeneratedContent } from '@/components/dashboard/content-card'
+import { ContentsGallery } from '@/components/dashboard/contents-gallery'
 import { BulkExport } from '@/components/dashboard/bulk-export'
 
 export default async function ContentsPage() {
@@ -109,9 +107,7 @@ export default async function ContentsPage() {
               </p>
             </div>
           ) : (
-            contents.map((content) => (
-              <ContentCard key={content.id} content={content} />
-            ))
+            <ContentsGallery contents={contents} />
           )}
         </div>
       </div>

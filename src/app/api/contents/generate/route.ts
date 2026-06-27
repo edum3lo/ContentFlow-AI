@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import { buildVideoScript } from '@/lib/video-script'
+import { categoryGuidance, isValidCategory } from '@/lib/categories'
 
 // A geração via OpenAI pode passar dos ~10s padrão do Vercel.
 export const maxDuration = 60
@@ -126,6 +127,9 @@ export async function POST(request: Request) {
     const tone = body?.tone as string | undefined
     const network = body?.network as string | undefined
     const generateScript = body?.generateScript === true
+    const category = isValidCategory(body?.category)
+      ? (body.category as string)
+      : null
     // Número de variações distintas a gerar numa ÚNICA chamada (1 a 5).
     const variations = Math.min(
       Math.max(parseInt(String(body?.variations ?? 1), 10) || 1, 1),
@@ -202,6 +206,9 @@ export async function POST(request: Request) {
     if (brandName) {
       finalInstruction += `\n\nA marca/loja se chama "${brandName}". Quando fizer sentido, cite a marca no texto ou no CTA (ex.: "Chame a ${brandName} no WhatsApp"). Não invente outro nome de loja.`
     }
+
+    // Ângulo do conteúdo conforme a categoria/pilar escolhido.
+    finalInstruction += categoryGuidance(category)
 
     if (generateScript && type !== 'video') {
       finalInstruction += `\n\nIMPORTANTE: O usuário pediu um roteiro de vídeo junto com esse conteúdo. Adicione um campo 'slides' no JSON contendo pelo menos um objeto { "kind": "roteiro", "text": "Passos para gravar o vídeo..." } e { "kind": "gancho", "text": "..." }.`
@@ -288,6 +295,7 @@ export async function POST(request: Request) {
           cta: item.cta || '',
           video_script: videoScript,
           content_data: slides ? { slides } : null,
+          category,
         })
         .select()
         .single()

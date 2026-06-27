@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { deleteContent } from '@/app/dashboard/contents/actions'
+import { CATEGORY_LABEL } from '@/lib/categories'
 
 type Slide = {
   kind?: string
@@ -35,6 +36,7 @@ export type GeneratedContent = {
   hashtags: string
   cta: string
   content_data: { slides?: Slide[] } | null
+  category?: string | null
   created_at: string
   product?: { name: string } | null
 }
@@ -222,9 +224,14 @@ export function ContentCard({ content }: { content: GeneratedContent }) {
               <Icon className="h-4 w-4" />
             </span>
             <div>
-              <Badge variant="secondary" className="mb-0.5">
-                {meta.label}
-              </Badge>
+              <span className="mb-0.5 flex flex-wrap items-center gap-1">
+                <Badge variant="secondary">{meta.label}</Badge>
+                {content.category && (
+                  <Badge variant="outline">
+                    {CATEGORY_LABEL[content.category] ?? content.category}
+                  </Badge>
+                )}
+              </span>
               <p className="text-xs text-muted-foreground">
                 {content.product?.name
                   ? content.product.name + ' • '
